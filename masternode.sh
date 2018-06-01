@@ -96,6 +96,22 @@ function createMasternodeConfig {
   rm masternode_outputs
 }
 
+function checkRunningMasternode {
+    PID=$(cat ~/.ips/ipsd.pid)
+    if ps -p $PID > /dev/null
+    then
+       ./ips-cli masternode status > masternode_status
+      MESSAGE=`readJsonValue masternode_status message`
+      if ! [[ $MESSAGE = *"successfully"* ]]; then
+        echo $(date -u) " Masternode not running! Trying to restart." >> checkIPSD.log
+        ## TODO: get alias, restart masternode
+      fi
+    else
+       echo $(date -u) " IPSD ($PID) not running!" >> checkIPSD.log
+       ./ipsd
+    fi
+}
+
 function install {
 
   echo "--------------------------------------------------------------------------------"
@@ -263,6 +279,9 @@ case "$1" in
        ;;
     status)
        checkBlockchainHeightAndWaitForSync
+       ;;
+    check)
+        checkRunningMasternode
        ;;
     *)
        echo "Usage: $0 {install|update|status}"
