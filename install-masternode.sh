@@ -109,6 +109,26 @@ function install {
   echo
 
   read -p "DO YOU WANT TO INSTALL A NEW IPSUM MASTERNODE? [yes/no]: " INSTALL
+
+  if [ "$INSTALL" != "yes" ]; then
+    exit;
+  fi
+
+  CONF_DIR=~/.ips/
+  if [ -d CONF_DIR ]; then
+    echo -e "${YELLOW}!!! --- EXISTING CONFIGURATION FOUND --- !!!${NC}"
+    read -p "THIS SCRIPT IS INTENDED TO WORK ON A CLEAN FRESH ENVIRONMENT, DO YOU WANT TO CONTINUE ANYWAYS? [yes/no]: " CONTINUE
+    if [ "$CONTINUE" != "yes" ]; then
+      exit;
+    fi
+    echo
+    echo -e "${YELLOW}CREATING BACKUPS OF CURRENT CONFIGURATION AND TRY TO USE OLD WALLET.${NC}"
+    mv ${CONF_DIR}/ips.conf $CONF_DIR/ips.conf_backup
+    mv ${CONF_DIR}/masternode.conf $CONF_DIR/masternode.conf_backup
+  else
+    mkdir -p $CONF_DIR
+  fi
+
   echo
   read -p "TYPE THE ALIAS FOR YOUR MASTERNODE: " MASTERNODE_ALIAS
 
@@ -118,12 +138,17 @@ function install {
     MASTERNODE_ALIAS="IPS-MN"
   fi
 
-  if [ "$INSTALL" != "yes" ]; then
-    exit;
+  echo
+  echo -p "DO YOU HAVE A MASTERNODE KEY AND A WALLET ADDRESS ALREADY? [yes/no]: " KEY_EXIST
+  if [ "$KEY_EXIST" = "yes" ]; then
+    echo
+    read -p "TYPE IN YOUR MASTERNODE KEY: " masternode_key
+    read -p "TYPE IN YOU MASTERNODE WALLET ADDRESS: " masternode_wallet
   fi
 
   echo
 
+  ## update environment
   sudo apt-get -y update
   sudo apt-get -y upgrade
   sudo apt autoremove -y && sudo apt-get update
@@ -135,16 +160,12 @@ function install {
   sudo apt-get update
   sudo apt-get install -y libdb4.8-dev libdb4.8++-dev
 
-  CONF_DIR=~/.ips/
-  if [ -d CONF_DIR ]; then
-    rm ips*
-    rm -r ~/.ips
-  fi
-  mkdir -p $CONF_DIR
-
+  # load current IPS release
   wget https://github.com/ipsum-network/ips/releases/download/v3.1.0.0/ips-3.1.0-linux.tar.gz
   tar xvzf ips-3.1.0-linux.tar.gz
+  rm ips-cli
   cp ./ips-3.1.0/bin/ips-cli .
+  rm ipsd
   cp ./ips-3.1.0/bin/ipsd .
 
   CONF_FILE=ips.conf
@@ -163,7 +184,7 @@ function install {
   echo "port=22331" >> CONF_TEMP
   echo "externalip=$LOCAL_IP:22331" >> CONF_TEMP
 
-  wget https://github.com/ipsum-network/seeds/raw/master/README.md
+  wget -q https://github.com/ipsum-network/seeds/raw/master/README.md
   LINES=$(< README.md wc -l)
   END=$((LINES - 1))
   sed -n "7,$END p" < README.md > SEED_NODES
@@ -174,9 +195,12 @@ function install {
 
   checkBlockchainHeightAndWaitForSync
 
-  masternode_key=$(./ips-cli masternode genkey)
+  if [ "$KEY_EXIST" != "yes" ]; then
+    masternode_key=$(./ips-cli masternode genkey)
+    masternode_wallet=$(./ips-cli getaccountaddress 0)
+  fi
+
   echo $masternode_key > masternode_key
-  masternode_wallet=$(./ips-cli getaccountaddress 0)
   echo $masternode_wallet > masternode_wallet
 
   echo -e "NOW SEND ${RED}EXACTLY ${YELLOW}5000${NC} IPS TO THIS ADDRESS: ${CYAN}$masternode_wallet${NC}"
